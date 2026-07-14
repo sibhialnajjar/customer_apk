@@ -1,0 +1,60 @@
+name: Update Latest APK
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.release.tag_name != 'latest'
+
+    steps:
+      - name: Download versioned APK from release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+
+          if [ -z "$TAG" ]; then
+            TAG=$(gh release list --repo "${{ github.repository }}" --limit 10 \
+              --json tagName -q '.[] | select(.tagName != "latest") | .tagName' | head -n 1)
+          fi
+
+          if [ -z "$TAG" ]; then
+            echo "No release found"
+            exit 1
+          fi
+
+          ASSET_NAME=$(gh release view "$TAG" --repo "${{ github.repository }}" \
+            --json assets -q '.assets[] | select(.name | endswith(".apk")) | select(.name != "latest.apk") | .name' \
+            | head -n 1)
+
+          if [ -z "$ASSET_NAME" ]; then
+            echo "No versioned APK found in release $TAG"
+            exit 1
+          fi
+
+          echo "Using APK from release $TAG: $ASSET_NAME"
+          echo "ASSET_NAME=$ASSET_NAME" >> "$GITHUB_ENV"
+
+          mkdir -p dist
+          gh release download "$TAG" --repo "${{ github.repository }}" \
+            --pattern "$ASSET_NAME" --dir dist --clobber
+
+      - name: Update stable latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view latest --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release delete latest --repo "${{ github.repository }}" --yes
+          fi
+
+          gh release create latest "dist/$ASSET_NAME" \
+            --repo "${{ github.repository }}" \
+            --title "Latest" \
+            --notes "رابط ثابت لآخر نسخة. يُحدَّث تلقائياً عند نشر أي إصدار جديد."

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>جاري التنزيل...</title>
+    <script>
+        fetch('https://api.github.com/repos/sibhialnajjar/customer_apk/releases/tags/latest')
+            .then(function (response) {
+                if (!response.ok) throw new Error('release not found');
+                return response.json();
+            })
+            .then(function (data) {
+                var apk = data.assets.find(function (asset) {
+                    return asset.name.endsWith('.apk');
+                });
+                if (!apk) throw new Error('apk not found');
+                window.location.replace(apk.browser_download_url);
+            })
+            .catch(function () {
+                document.getElementById('status').textContent = 'تعذر بدء التنزيل. حاول لاحقاً.';
+            });
+    </script>
+</head>
+<body>
+    <p id="status">جاري التنزيل...</p>
+</body>
+</html>
